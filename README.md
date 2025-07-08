@@ -80,4 +80,3 @@ This MATLAB project simulates **convolutional encoding and decoding** over an **
 
 Made with ❤️ by **Dhruvil Patel**,  
 as part of a group project with **10 team members** from **Dhirubhai Ambani University (DAU)** under guidance of the course instructor Prof. Yash Vasavada.  
-Developed for academic and research purposes in the field of digital communications.
