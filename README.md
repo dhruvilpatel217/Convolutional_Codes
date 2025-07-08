@@ -35,3 +35,40 @@ This MATLAB project simulates **convolutional encoding and decoding** over an **
 
 ## 📁 Folder Structure
 
+```
+📦convolutional-coding
+┣ 📜main.m # Entry point for simulation
+┣ 📜encoder.m # Convolutional encoder function
+┣ 📜decoder_hard.m # Viterbi decoder (hard decision)
+┣ 📜decoder_soft.m # Viterbi decoder (soft decision)
+┣ 📜awgn_channel.m # Simulates AWGN noise
+┣ 📜plot_results.m # Plots BER and failure probability
+┗ 📊/results # Folder for saved plots and data
+```
+---
+
+## 🧪 How It Works
+
+1. A random bit sequence is generated.
+2. The sequence is encoded using a convolutional encoder.
+3. The encoded signal is passed through an AWGN channel.
+4. The received noisy signal is decoded using:
+   - **Hard Decision**: Binary quantized decoding.
+   - **Soft Decision**: Uses soft values in path metric computation.
+5. BER and probability of decoding failure are calculated across SNR values.
+6. Results are visualized using MATLAB plots.
+
+---
+
+## 📚 References
+
+- Proakis, J. G. *Digital Communications*  
+- Sklar, B. *Digital Communications: Fundamentals and Applications*  
+
+---
+
+## 👤 Author
+
+Made with ❤️ by **Dhruvil Patel**,  
+as part of a group project with **10 team members** from **Dhirubhai Ambani University (DAU)**.  
+Developed for academic and research purposes in the field of digital communications.
