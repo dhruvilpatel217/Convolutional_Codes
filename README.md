@@ -47,12 +47,12 @@ This MATLAB project simulates **convolutional encoding and decoding** over an **
 
 ```
 📦convolutional-coding
-┣ 📜main.m # Entry point for simulation
-┣ 📜encoder.m # Convolutional encoder function
-┣ 📜decoder_hard.m # Viterbi decoder (hard decision)
-┣ 📜decoder_soft.m # Viterbi decoder (soft decision)
-┣ 📜awgn_channel.m # Simulates AWGN noise
-┣ 📜plot_results.m # Plots BER 
+┣ 📜main # Entry point for simulation
+┣ 📜encoder # Convolutional encoder function
+┣ 📜decoder_hard # Viterbi decoder (hard decision)
+┣ 📜decoder_soft # Viterbi decoder (soft decision)
+┣ 📜awgn_channel # Simulates AWGN noise
+┣ 📜plot_results # Plots BER 
 ```
 ---
 
