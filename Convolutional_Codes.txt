@@ -1,0 +1,419 @@
+tic;
+Nsim = 10000;
+input_size = 100; % Input message size
+Kc = [3 4 6]; % Constraint lengths list
+R = [1/2 1/3 1/3]; % Code rates
+generatorOctal = {[5 7]; [13 15 17]; [47 53 75]};
+EbNo_dB = 0:0.5:10;
+EbNo_lin = 10.^(EbNo_dB/10);
+
+% State Transition data tables
+State_Table_1 = State_Table_generator(Kc(1),R(1), generatorOctal{1,:});
+State_Table_2 = State_Table_generator(Kc(2),R(2), generatorOctal{2,:});
+State_Table_3 = State_Table_generator(Kc(3),R(3), generatorOctal{3,:});
+
+prob_decoding_failure_hard = zeros(3, length(EbNo_lin));
+prob_decoding_failure_soft = zeros(3, length(EbNo_lin));
+BER_hard = zeros(3, length(EbNo_lin));
+BER_soft = zeros(3, length(EbNo_lin));
+
+for c = 1 : length(Kc)
+    for i = 1 : length(EbNo_lin)
+        failures_hard = 0;
+        failures_soft = 0;
+        bits_in_error_hard = 0;
+        bits_in_error_soft = 0;
+        total_error_bits_hard = 0;
+        total_error_bits_soft = 0;
+
+        for j = 1: Nsim
+            % Input message
+            message = rand(1,input_size) < 0.5;
+            message = [message, zeros(1,Kc(c) - 1)];
+    
+            % Encoding
+            codeword = Convolutional_Encoder(message, generatorOctal{c,:}, R(c), Kc(c));
+            
+            % Modulation
+            modulated = 1 - 2*codeword;
+    
+            % Corruption
+            noise_power = 1/(EbNo_lin(i));
+            sig = sqrt(noise_power);
+            % AWGN definition
+            noise = sig .* randn(1,length(modulated));
+    
+            % Corruption
+            corrupted = modulated + noise;
+    
+            % Demodulation
+            demodulated = corrupted <0;
+            
+            switch c
+                case 1
+                    State_Table = State_Table_1;
+                case 2
+                    State_Table = State_Table_2;
+                otherwise
+                    State_Table = State_Table_3;
+
+            end
+            
+            decoded_mssg_hard = Convolutional_Decoder(demodulated, Kc(c), R(c), 'H', State_Table);
+            decoded_mssg_soft = Convolutional_Decoder(corrupted, Kc(c), R(c), 'S', State_Table);
+            
+            % Remaining number of errors in decoded message
+            bits_in_error_hard = sum(bitxor(decoded_mssg_hard, message)); 
+            bits_in_error_soft = sum(bitxor(decoded_mssg_soft, message)); 
+            
+            % Total bits in error over a simula
+            total_error_bits_hard = total_error_bits_hard + bits_in_error_hard;
+            total_error_bits_soft = total_error_bits_soft + bits_in_error_soft;
+    
+            if bits_in_error_hard > 0
+                failures_hard = failures_hard + 1;
+            end
+            if bits_in_error_soft > 0
+                failures_soft = failures_soft + 1;
+            end
+        end
+        prob_decoding_failure_hard(c,i) = failures_hard/Nsim;
+        prob_decoding_failure_soft(c,i) = failures_soft/Nsim;
+    
+        BER_hard(c,i) = total_error_bits_hard/(Nsim * length(decoded_mssg_hard));
+        BER_soft(c,i) = total_error_bits_soft/(Nsim * length(decoded_mssg_soft)); 
+    end
+end
+
+% For Rate = 1/2 and Kc = 3, Theoretical BER is calculated below
+
+% Calculate theoretical BER for hard viterbi decoding
+BER_Theoretical_Hard= zeros(size(EbNo_lin));
+
+% Approximation as a BSC channel with bit flip probability 'p'
+p = qfunc(sqrt(2 * R(1) * EbNo_lin));  
+d_vals = 5:11; %Some first dominant terms of transfer function in consideration
+
+% A_d = [1, 2, 4, 8, 16, 32 ,....] --> We will consider first dominant terms
+% f(d) = [1, 2, 3, 4, 5, 6,....] --> power of N in transfer function
+
+beta_d = [1, 4, 12, 32, 80, 192, 448]; % (A_d x f(d)) --> weights of D^d in DT/DN
+for j = 1:length(EbNo_lin)
+    Pb = 0;
+    for idx = 1:length(d_vals)
+        d = d_vals(idx);
+        sum_prob = 0;
+        for i = ceil(d/2):d
+            % Central formula 
+            sum_prob = sum_prob + nchoosek(d, i) * p(j)^i * (1 - p(j))^(d - i);
+        end
+        Pb = Pb + beta_d(idx) * sum_prob;
+    end
+    BER_Theoretical_Hard(j) = Pb;
+end
+
+% Calculate theoretical BER for soft viterbi decoding
+BER_Theoretical_Soft = zeros(size(EbNo_lin));
+
+for j = 1:length(EbNo_lin)
+    D = 0;
+    for i = 1:length(d_vals)
+        % Central formula
+        D = D + beta_d(i) * exp(-d_vals(i) * EbNo_lin(j) * R(1));
+    end
+    BER_Theoretical_Soft(j) = D;
+end
+
+
+% Bit error rates
+figure;
+semilogy(EbNo_dB, BER_hard(1,:), 'r-', 'LineWidth', 1.2);
+hold on;
+semilogy(EbNo_dB, BER_soft(1,:), 'r--', 'LineWidth', 1.2);
+semilogy(EbNo_dB, BER_hard(2,:), 'b-', 'LineWidth', 1.2);
+semilogy(EbNo_dB, BER_soft(2,:), 'b--', 'LineWidth', 1.2);
+semilogy(EbNo_dB, BER_hard(3,:), 'm-', 'LineWidth', 1.2);
+semilogy(EbNo_dB, BER_soft(3,:), 'm--', 'LineWidth', 1.2);
+title('Bit Error Rate graphs for all schemes for Eb/No');
+legend('Rate = 1/2, Kc = 3, Hard', 'Rate = 1/2, Kc = 3 , Soft', ...
+    'Rate = 1/3, Kc = 4, Hard', 'Rate = 1/3, Kc = 4 , Soft', ...
+    'Rate = 1/3, Kc = 6, Hard', 'Rate = 1/3, Kc = 6 , Soft');
+xlabel('Eb/No');
+ylabel('Bit Error Probability');
+xlim([min(EbNo_dB) max(EbNo_dB)]);
+ylim([1e-6 1e0]);
+grid on;
+
+figure;
+semilogy(EbNo_dB, BER_hard(1,:), 'r-', 'LineWidth', 1.2);
+hold on;
+semilogy(EbNo_dB, BER_soft(1,:), 'r--', 'LineWidth', 1.2);
+semilogy(EbNo_dB, BER_Theoretical_Hard, 'b-o', 'LineWidth', 1.2);
+semilogy(EbNo_dB, BER_Theoretical_Soft, 'g-o', 'LineWidth', 1.2);
+title('Bit Error Rate graphs of Rate = 1/2, Kc = 3 for Eb/No');
+legend('Simulated Hard', 'Simulated Soft', 'Theoretical Hard', 'Theoretical Soft');
+xlabel('Eb/No');
+ylabel('Bit Error Probability');
+xlim([min(EbNo_dB) max(EbNo_dB)]);
+grid on;
+
+figure;
+semilogy(EbNo_dB, BER_hard(2,:), 'b-', 'LineWidth', 1.2);
+hold on;
+semilogy(EbNo_dB, BER_soft(2,:), 'b--', 'LineWidth', 1.2);
+title('Bit Error Rate graphs of rate = 1/3, Kc = 4 for Eb/No');
+legend('Hard', 'Soft');
+xlabel('Eb/No');
+ylabel('Bit Error Probability');
+xlim([min(EbNo_dB) max(EbNo_dB)]);
+grid on;
+
+figure;
+semilogy(EbNo_dB, BER_hard(3,:), 'm-', 'LineWidth', 1.2);
+hold on;
+semilogy(EbNo_dB, BER_soft(3,:), 'm--', 'LineWidth', 1.2);
+title('Bit Error Rate graphs of rate = 1/3, Kc = 6 for Eb/No');
+legend('Hard', 'Soft');
+xlabel('Eb/No');
+ylabel('Bit Error Probability');
+xlim([min(EbNo_dB) max(EbNo_dB)]);
+grid on;
+
+% Probability of decoding failure
+figure;
+semilogy(EbNo_dB, prob_decoding_failure_hard(1,:), 'r-', 'LineWidth', 1.2);
+hold on;
+semilogy(EbNo_dB, prob_decoding_failure_soft(1,:), 'r--', 'LineWidth', 1.2);
+semilogy(EbNo_dB, prob_decoding_failure_hard(2,:), 'b-', 'LineWidth', 1.2);
+semilogy(EbNo_dB, prob_decoding_failure_soft(2,:), 'b--', 'LineWidth', 1.2);
+semilogy(EbNo_dB, prob_decoding_failure_hard(3,:), 'm-', 'LineWidth', 1.2);
+semilogy(EbNo_dB, prob_decoding_failure_soft(3,:), 'm--', 'LineWidth', 1.2);
+title('Probability of error graphs for all schemes for Eb/No');
+legend('Rate = 1/2, Kc = 3, Hard', 'Rate = 1/2, Kc = 3 , Soft', ...
+    'Rate = 1/3, Kc = 4, Hard', 'Rate = 1/3, Kc = 4 , Soft', ...
+    'Rate = 1/3, Kc = 6, Hard', 'Rate = 1/3, Kc = 6 , Soft');
+xlabel('Eb/No');
+ylabel('Probability of error');
+xlim([min(EbNo_dB) max(EbNo_dB)]);
+ylim([1e-6 1e0]);
+grid on;
+
+figure;
+semilogy(EbNo_dB, prob_decoding_failure_hard(1,:), 'r-', 'LineWidth', 1.2);
+hold on;
+semilogy(EbNo_dB, prob_decoding_failure_soft(1,:), 'r--', 'LineWidth', 1.2);
+title('Probability of error graphs of Rate = 1/2, Kc = 3 for Eb/No');
+legend('Hard', 'Soft');
+xlabel('Eb/No');
+ylabel('Probability of error');
+xlim([min(EbNo_dB) max(EbNo_dB)]);
+grid on;
+
+figure;
+semilogy(EbNo_dB, prob_decoding_failure_hard(2,:), 'b-', 'LineWidth', 1.2);
+hold on;
+semilogy(EbNo_dB, prob_decoding_failure_soft(2,:), 'b--', 'LineWidth', 1.2);
+title('Probability of error graphs of rate = 1/3, Kc = 4 for Eb/No');
+legend('Hard', 'Soft');
+xlabel('Eb/No');
+ylabel('Probability of error');
+xlim([min(EbNo_dB) max(EbNo_dB)]);
+grid on;
+
+figure;
+semilogy(EbNo_dB, prob_decoding_failure_hard(3,:), 'm-', 'LineWidth', 1.2);
+hold on;
+semilogy(EbNo_dB, prob_decoding_failure_soft(3,:), 'm--', 'LineWidth', 1.2);
+title('Probability of error graphs of rate = 1/3, Kc = 6 for Eb/No');
+legend('Hard', 'Soft');
+xlabel('Eb/No');
+ylabel('Probability of error');
+xlim([min(EbNo_dB) max(EbNo_dB)]);
+
+grid on;
+toc;
+
+
+function G = octal2bin_for_generators(a)
+for i = 1:length(a)
+    digitarray = dec2bin(oct2dec(a(i))) - '0';
+    G(:,i) = digitarray';
+end
+end
+
+function enc = Convolutional_Encoder(mssg, gen, r, Kc)
+
+N = length(mssg);
+parse = zeros(1,Kc-1); % Extra Kc-1 zeros to handle initial empty regeister states
+mssg = [parse,mssg];
+idx = 1:N;
+
+% The matrix that will be multiplied with generators directly
+% Matrix whose each column has input and current state involved at a time
+bits = mssg(idx' + (Kc-1:-1:0))'; 
+
+% Deriving generators into binary vectors from octal values
+G = octal2bin_for_generators(gen);
+
+% Encoding
+% multiplication of each state with generators and formation of output 
+v = mod(G.' * bits, 2);
+
+% Encoded massage
+opt = reshape(v, 1, []);
+enc = opt;
+end
+
+%function for generating state_table for a given constraint length kc and
+%code rate r
+function t = State_Table_generator(kc, r, gen)
+
+%generating generator matrix G from given decimal value of genrator 
+G = octal2bin_for_generators(gen);
+k = kc-1;
+ip = zeros(kc,1);
+queue = [1]; %queue to maintain the order of the evaluation
+t = cell(2^kc,4);
+l = 1;
+visited = zeros(1,2^k);
+visited(1) = 1;
+
+%this loop will generate the state table for every state and store
+%curr_state, input, next state and output of the current state 
+while nnz(queue) ~= 0
+    front = queue(1);
+    queue(1) = []; 
+
+    vec = dec2bin(front-1,k);   %converting state number to binary of length k
+    vec = vec-'0';  %convert string to numeric array
+    vec = vec'; %convert row to column vector
+
+    %for each state we have two ip : 0/1
+    for j = 0:1
+        ip = [j;vec];  
+
+        t{l,1} = front;   %current_state
+        t{l,2} = j;       %input_bit
+
+        nextstr = num2str((ip(1:end-1))'); % next_state
+        nextstr = nextstr(~isspace(nextstr));
+
+        val=bin2dec(nextstr); %convert state to decimal
+        val=val+1;
+
+        % We visit each node twice one time for input 0 and one time for input 1
+        % Again adding to q if node not visited twice 
+        if(visited(val)<1)
+            queue(end+1) = val;
+            visited(val) = visited(val)+1;
+        end
+
+        t{l,3} = val;     % Next state in decimal
+        v = mod(G.'*ip, 2);  % Output v = Generator_matrix * input
+        out = num2str(v);    % store output in string
+        out = out(~isspace(out));
+        t{l,4} = out;       % Output
+
+        if j == 0
+            l = l+2;    % Storing states at every other index for easier access later
+        end
+    end
+
+    % Moving to index 2 to fill the table again after reaching last to second index 
+    if l == 2^kc-1
+        l = 2;
+    else 
+        l = l + 2;
+    end
+
+end
+
+i = 1;
+l = 1;
+
+%Rename states to make backtracking easier later
+for p = 1:2^kc
+    if mod(p,2)==0
+        continue;
+    end
+
+    t{p,1} = i;   
+    t{p,3} = l;    
+    t{p+1,1} = i + 2^k/2;
+    t{p+1,3} = l;
+    l = l + 1;
+
+    if mod(l,2) ~= 0
+        i = i + 1;
+    end
+end
+
+end
+
+function [mssg] = Convolutional_Decoder(ip, kc, r, H_or_S, state_data)
+k= kc-1;
+nop = 1/r;
+s = length(ip);
+ip = reshape(ip,[], s/nop);
+
+prev_metric = zeros(1,2^k); % Latest updates cost metric of each node
+
+% storing cost metric, ipbit and parent stage of each node at each level,
+% 3D matrix containing all the important data of trellis
+data = zeros(s/nop, 3, 2^k);
+
+% DP and tabulation method for cost computation
+for i = 1:s/nop
+    lim = min(2^i, 2^kc);
+    l=1;
+    tmpstr = zeros(2^k, 3);
+    for j = 1:lim
+
+        % Output chunk for comparison with revieved output chunk
+        arr = (state_data{l,4}' - '0');
+        
+        % Calculation of metric for particular state node
+        if H_or_S == 'H'
+            metric = sum(bitxor(arr, ip(:,i)'));
+        else
+            metric = (norm(ip(:,i)' - (1 - 2.*arr)))^2;
+        end
+
+        % Data metric calculation and updation 
+        if nnz(tmpstr(state_data{l,3},3))>0 && (metric + prev_metric(state_data{l,1})>tmpstr(state_data{l,3},1))
+            data(i,:,state_data{l,3}) = tmpstr(state_data{l,3},:);
+        else
+            data(i,1,state_data{l,3}) = metric + prev_metric(state_data{l,1}); % metric at current node
+            data(i,2,state_data{l,3}) = state_data{l,2}; % prev input that drives to current node
+            data(i,3,state_data{l,3}) = state_data{l,1}; % parent state    
+            tmpstr(state_data{l,3},:) = data(i,:, state_data{l,3});
+        end
+
+        % Smart indexing for levelwise lookup in state data
+        if lim==2^kc
+            l = l + 1; 
+        else 
+            l = l + 2;
+        end
+    end
+    prev_metric(:) = data(i,1,:);
+    
+end
+
+% Backtracking and extraction of input message 
+it = size(data, 1);
+decoded = zeros(1, s/nop);
+[~, D] = min(data(end, 1, :));
+parent = data(end, :, D);
+while it~=0
+    decoded(it) = parent(2);
+    it = it - 1;
+    if it==0
+        break;
+    end
+    parent = data(it, :, parent(3)); 
+end
+
+% Decoded massage
+mssg = decoded(1 : s/nop);
+end
