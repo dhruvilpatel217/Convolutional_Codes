@@ -26,6 +26,16 @@ This MATLAB project simulates **convolutional encoding and decoding** over an **
 
 ---
 
+## 📈 Sample Output
+
+### BER vs Eb/N0 Curve
+
+![BER Plot](results/ber_plot.png)
+
+> *This plot shows the Bit Error Rate (BER) performance for various convolutional coding schemes with different code rates and constraint lengths. Soft decision decoding consistently outperforms hard decision decoding, especially at higher Eb/No values.*
+
+---
+
 ## 🧰 Requirements
 
 - MATLAB R2021a or newer
