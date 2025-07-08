@@ -42,8 +42,7 @@ This MATLAB project simulates **convolutional encoding and decoding** over an **
 ┣ 📜decoder_hard.m # Viterbi decoder (hard decision)
 ┣ 📜decoder_soft.m # Viterbi decoder (soft decision)
 ┣ 📜awgn_channel.m # Simulates AWGN noise
-┣ 📜plot_results.m # Plots BER and failure probability
-┗ 📊/results # Folder for saved plots and data
+┣ 📜plot_results.m # Plots BER 
 ```
 ---
 
